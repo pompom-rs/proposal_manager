@@ -1,0 +1,27 @@
+# API a backend
+fastapi>=0.95.0
+uvicorn>=0.21.1
+pydantic>=1.10.7
+python-dotenv>=1.0.0
+httpx>=0.24.0
+python-multipart>=0.0.6
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Databáze a autentizace
+supabase>=1.0.3
+
+# AI integrace
+openai>=0.27.6
+
+# Testování
+pytest>=7.3.1
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+asynctest>=0.5.0
+
+# Vývojové nástroje
+black>=23.3.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.2.0

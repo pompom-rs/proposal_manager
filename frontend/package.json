@@ -1,0 +1,38 @@
+{
+  "name": "proposal-manager",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --write 'src/**/*.{js,vue}'"
+  },
+  "dependencies": {
+    "vue": "^3.2.47",
+    "vue-router": "^4.1.6",
+    "pinia": "^2.0.33",
+    "vuetify": "^3.1.13",
+    "axios": "^1.3.5",
+    "chart.js": "^4.2.1",
+    "vue-chartjs": "^5.2.0",
+    "@mdi/font": "^7.2.96",
+    "@supabase/supabase-js": "^2.21.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.1.0",
+    "@vue/test-utils": "^2.3.2",
+    "eslint": "^8.38.0",
+    "eslint-plugin-vue": "^9.10.0",
+    "jsdom": "^21.1.1",
+    "prettier": "^2.8.7",
+    "vite": "^4.2.1",
+    "vitest": "^0.30.1",
+    "sass": "^1.62.0",
+    "@vitest/coverage-c8": "^0.30.1"
+  }
+}
