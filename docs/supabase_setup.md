@@ -1,59 +1,185 @@
-# Nastavení Supabase projektu
+# Nastavení lokální Supabase instance v Dockeru
 
-Tento dokument obsahuje instrukce pro vytvoření a konfiguraci Supabase projektu pro aplikaci Proposal Manager.
+Tento dokument obsahuje instrukce pro nastavení a konfiguraci lokální Supabase instance běžící v Dockeru pro aplikaci Proposal Manager.
 
-## Registrace na Supabase
+## Předpoklady
 
-1. Navštivte [Supabase](https://supabase.com/) a klikněte na tlačítko "Start your project"
-2. Vytvořte účet pomocí GitHub, Google nebo e-mailu
-3. Potvrďte svůj e-mail, pokud je to vyžadováno
+- Docker a Docker Compose jsou nainstalovány na vašem systému
+- Máte již běžící lokální instanci Supabase v Dockeru
 
-## Vytvoření nového projektu
+## Připojení k existující Supabase instanci
 
-1. Po přihlášení klikněte na tlačítko "New Project"
-2. Vyberte organizaci nebo vytvořte novou
-3. Zadejte následující údaje:
-   - **Name**: `proposal-manager` (nebo jiný název dle vašeho výběru)
-   - **Database Password**: Vygenerujte silné heslo a bezpečně si ho uložte
-   - **Region**: Vyberte region nejblíže vašim uživatelům (např. `eu-central-1` pro Evropu)
-   - **Pricing Plan**: Začněte s Free plánem pro vývoj
+### 1. Získání přístupových údajů
 
-4. Klikněte na "Create new project"
-5. Počkejte, až se projekt vytvoří (může to trvat několik minut)
+Pokud máte již běžící instanci Supabase, potřebujete získat následující přístupové údaje:
 
-## Získání přístupových údajů
+- **Supabase URL**: Typicky `http://localhost:8000` (nebo jiný port, na kterém běží vaše instance)
+- **Supabase Anon Key**: Veřejný klíč pro klientské aplikace
+- **Supabase Service Key**: Tajný klíč pro serverové aplikace
 
-Po vytvoření projektu budete potřebovat přístupové údaje pro připojení aplikace k Supabase:
+Tyto údaje můžete najít v konfiguračních souborech vaší Supabase instance nebo v Supabase dashboardu na adrese `http://localhost:8000/project/default`.
 
-1. V dashboardu projektu přejděte do sekce "Settings" > "API"
-2. Zkopírujte následující údaje:
-   - **Project URL**: `https://[project-id].supabase.co`
-   - **anon/public key**: Veřejný klíč pro klientské aplikace
-   - **service_role key**: Tajný klíč pro serverové aplikace (používejte pouze na serveru!)
+### 2. Konfigurace přístupových údajů v aplikaci
 
-3. Vytvořte soubor `.env` v kořenovém adresáři projektu a přidejte tyto údaje:
+Vytvořte soubor `.env` v kořenovém adresáři projektu a přidejte tyto údaje:
 
 ```
-SUPABASE_URL=https://[project-id].supabase.co
-SUPABASE_PUBLIC_KEY=your-anon-public-key
-SUPABASE_SERVICE_KEY=your-service-role-key
+# Supabase
+SUPABASE_URL=http://localhost:8000
+SUPABASE_PUBLIC_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-key
+
+# OpenAI
+OPENAI_API_KEY=your-openai-api-key
+
+# Backend
+BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8080"]
+SECRET_KEY=your-secret-key-for-jwt-tokens
+
+# Frontend
+VITE_API_URL=http://localhost:8000/api/v1
+VITE_SUPABASE_URL=http://localhost:8000
+VITE_SUPABASE_PUBLIC_KEY=your-anon-key
 ```
 
 **Poznámka**: Soubor `.env` je přidán do `.gitignore`, aby se citlivé údaje nedostaly do repozitáře.
 
+## Vytvoření nové Supabase instance v Dockeru (volitelné)
+
+Pokud ještě nemáte běžící instanci Supabase, můžete ji vytvořit následujícím způsobem:
+
+### 1. Klon Supabase Docker repozitáře
+
+```bash
+git clone https://github.com/supabase/supabase-docker.git
+cd supabase-docker
+```
+
+### 2. Spuštění Supabase
+
+```bash
+docker-compose up -d
+```
+
+Tento příkaz spustí všechny potřebné služby Supabase (PostgreSQL, PostgREST, GoTrue, Realtime, Storage, Kong, atd.).
+
+### 3. Přístup k Supabase dashboardu
+
+Po spuštění všech služeb můžete přistupovat k Supabase dashboardu na adrese:
+
+```
+http://localhost:8000
+```
+
+Výchozí přihlašovací údaje jsou:
+- **Email**: `admin@admin.com`
+- **Password**: `admin`
+
+### 4. Získání přístupových údajů
+
+Po přihlášení do dashboardu přejděte do sekce "Settings" > "API" a zkopírujte následující údaje:
+
+- **URL**: `http://localhost:8000`
+- **anon/public key**: Veřejný klíč pro klientské aplikace
+- **service_role key**: Tajný klíč pro serverové aplikace
+
 ## Nastavení databázového schématu
 
-Databázové schéma bude vytvořeno pomocí SQL migračních skriptů v dalších krocích implementace.
+Pro vytvoření databázového schématu podle návrhu aplikace Proposal Manager můžete použít následující postup:
+
+### 1. Přístup k SQL editoru
+
+V Supabase dashboardu přejděte do sekce "SQL Editor".
+
+### 2. Vytvoření tabulek
+
+Vytvořte nový SQL dotaz a vložte do něj SQL kód pro vytvoření tabulek podle návrhu v souboru `proposal_manager_design.md`. Například:
+
+```sql
+-- Vytvoření tabulky users
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'manager', 'user')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Vytvoření tabulky clients
+CREATE TABLE clients (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  description TEXT,
+  contact_person TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Další tabulky podle návrhu...
+```
+
+### 3. Nastavení Row Level Security (RLS)
+
+Pro zabezpečení dat nastavte Row Level Security pro každou tabulku. Například:
+
+```sql
+-- Povolení RLS pro tabulku users
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- Vytvoření policy pro tabulku users
+CREATE POLICY "Users can view their own data" ON users
+  FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Admins can view all users" ON users
+  FOR SELECT USING (auth.jwt() ->> 'role' = 'admin');
+```
 
 ## Nastavení autentizace
 
-1. V dashboardu Supabase přejděte do sekce "Authentication" > "Providers"
-2. Povolte "Email" autentizaci
-3. Volitelně povolte "Google" OAuth provider:
-   - Vytvořte OAuth aplikaci v [Google Cloud Console](https://console.cloud.google.com/)
-   - Nastavte redirect URL na `https://[project-id].supabase.co/auth/v1/callback`
-   - Zkopírujte Client ID a Client Secret do nastavení Google provideru v Supabase
+### 1. Konfigurace autentizačních providerů
+
+V Supabase dashboardu přejděte do sekce "Authentication" > "Providers":
+
+1. Povolte "Email" autentizaci
+2. Volitelně povolte "Google" OAuth provider (vyžaduje nastavení v Google Cloud Console)
+
+### 2. Konfigurace autentizace v aplikaci
+
+Pro použití Supabase autentizace v aplikaci jsou již připraveny následující soubory:
+
+- **Backend**: `backend/app/core/supabase.py` a `backend/app/core/auth.py`
+- **Frontend**: `frontend/src/services/supabase.js` a `frontend/src/services/auth.js`
+
+Tyto soubory jsou nakonfigurovány tak, aby používaly přístupové údaje z `.env` souboru.
+
+## Testování připojení
+
+Pro ověření, že vaše aplikace je správně připojena k lokální Supabase instanci, můžete použít následující postup:
+
+### 1. Spuštění backendu
+
+```bash
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --reload
+```
+
+### 2. Spuštění frontendu
+
+```bash
+cd frontend
+npm run dev
+```
+
+### 3. Testování autentizace
+
+Otevřete aplikaci v prohlížeči a zkuste se přihlásit pomocí emailu a hesla. Pokud je vše správně nakonfigurováno, měli byste být schopni se přihlásit a přistupovat k databázi.
 
 ## Další kroky
 
-Po dokončení těchto kroků budete mít připravený Supabase projekt pro vývoj aplikace Proposal Manager. V dalších krocích implementace vytvoříme databázové schéma a nastavíme autentizaci v aplikaci.
+Po dokončení těchto kroků budete mít připravenou lokální Supabase instanci pro vývoj aplikace Proposal Manager. V dalších krocích implementace vytvoříme databázové schéma a implementujeme autentizaci v aplikaci.
