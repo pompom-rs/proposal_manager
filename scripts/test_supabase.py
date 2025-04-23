@@ -5,7 +5,7 @@ Skript pro testování připojení k lokální Supabase instanci.
 
 import os
 import sys
-import asyncio
+import json
 
 # Přidání kořenového adresáře do PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -20,13 +20,6 @@ except ImportError:
     print("Modul 'dotenv' není nainstalovaný. Použijí se pouze proměnné prostředí systému.")
     print("Pro instalaci modulu spusťte: pip install python-dotenv")
 
-# Import Supabase klienta
-try:
-    from supabase import create_client, Client
-except ImportError:
-    print("Modul 'supabase' není nainstalovaný. Pro instalaci spusťte: pip install supabase")
-    sys.exit(1)
-
 # Získání přístupových údajů
 supabase_url = os.getenv("SUPABASE_URL", "http://localhost:8000")
 supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
@@ -34,6 +27,10 @@ supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
 # Kontrola a úprava URL
 if supabase_url.endswith('/'):
     supabase_url = supabase_url[:-1]  # Odstranit koncové lomítko
+
+# Výpis aktuálních nastavení
+print(f"Supabase URL: {supabase_url}")
+print(f"Supabase Key: {'*' * (len(supabase_key) - 4) + supabase_key[-4:] if supabase_key else 'není nastaveno'}")
 
 # Barvy pro výstup
 GREEN = '\033[0;32m'
@@ -50,9 +47,9 @@ def log_success(message):
 def log_error(message):
     print(f"{RED}ERROR:{NC} {message}")
 
-async def test_connection():
+def test_connection_sync():
     """
-    Otestuje připojení k Supabase.
+    Synchronní test připojení k Supabase.
     """
     log_info(f"Testování připojení k Supabase na URL: {supabase_url}")
     
@@ -61,67 +58,123 @@ async def test_connection():
         return False
     
     try:
-        # Vytvoření Supabase klienta
-        supabase: Client = create_client(supabase_url, supabase_key)
-        
-        # Jednoduchý test připojení
+        # Jednoduchý test připojení - získání zdravotního stavu
         try:
-            # Zkusíme získat informace o uživateli (anonymní přístup)
-            response = await supabase.auth.get_user(supabase_key)
-            log_success("Připojení k Supabase úspěšné!")
+            # Použijeme jednoduchý HTTP požadavek na zdravotní stav
+            import requests
+            health_url = f"{supabase_url}/rest/v1/"
+            headers = {
+                "apikey": supabase_key,
+                "Authorization": f"Bearer {supabase_key}"
+            }
+            response = requests.get(health_url, headers=headers)
             
-            # Nyní zkusíme zjistit, zda existuje schéma proposal_manager
-            try:
-                # Zkusíme získat seznam schémat
-                response = await supabase.from('information_schema.schemata').select('schema_name').execute()
-                
-                if response.error:
-                    log_error(f"Chyba při získávání seznamu schémat: {response.error.message}")
-                else:
-                    schemas = [item['schema_name'] for item in response.data]
-                    if 'proposal_manager' in schemas:
-                        log_success(f"Schéma proposal_manager existuje!")
-                        
-                        # Zkusíme získat seznam tabulek ve schémě proposal_manager
-                        try:
-                            response = await supabase.from('information_schema.tables').select('table_name').eq('table_schema', 'proposal_manager').execute()
-                            
-                            if response.error:
-                                log_error(f"Chyba při získávání seznamu tabulek: {response.error.message}")
-                            else:
-                                tables = [item['table_name'] for item in response.data]
-                                if tables:
-                                    log_success(f"Schéma proposal_manager obsahuje {len(tables)} tabulek: {', '.join(tables[:5])}{' a další...' if len(tables) > 5 else ''}")
-                                else:
-                                    log_info("Schéma proposal_manager existuje, ale neobsahuje žádné tabulky. Spusťte SQL skript pro vytvoření tabulek.")
-                        except Exception as e:
-                            log_error(f"Chyba při získávání seznamu tabulek: {str(e)}")
-                    else:
-                        log_info(f"Schéma proposal_manager neexistuje. Dostupná schémata: {', '.join(schemas[:5])}{' a další...' if len(schemas) > 5 else ''}")
-                        log_info("Spusťte SQL skript pro vytvoření schématu proposal_manager.")
-            except Exception as e:
-                log_error(f"Chyba při získávání seznamu schémat: {str(e)}")
-                log_info("Spusťte SQL skript pro vytvoření schématu proposal_manager.")
-            
-            return True
+            if response.status_code == 200:
+                log_success(f"Připojení k Supabase úspěšné! Status: {response.status_code}")
+                return True
+            else:
+                log_error(f"Chyba při připojení k Supabase. Status: {response.status_code}, Odpověď: {response.text}")
+                return False
         except Exception as e:
             log_error(f"Chyba při testování připojení k Supabase: {str(e)}")
             return False
             
     except Exception as e:
-        log_error(f"Chyba při připojování k Supabase: {str(e)}")
+        log_error(f"Chyba při testování připojení k Supabase: {str(e)}")
         return False
 
-async def main():
+def check_schema_exists():
+    """
+    Kontrola existence schématu proposal_manager.
+    """
+    log_info("Kontrola existence schématu proposal_manager...")
+    
+    try:
+        import requests
+        
+        # Nejprve zkusíme získat seznam schémat pomocí SQL dotazu
+        query_url = f"{supabase_url}/rest/v1/rpc/query"
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        
+        # SQL dotaz pro získání seznamu schémat
+        payload = {
+            "query": "SELECT schema_name FROM information_schema.schemata"
+        }
+        
+        response = requests.post(query_url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            try:
+                result = response.json()
+                schemas = [item.get('schema_name') for item in result]
+                
+                if 'proposal_manager' in schemas:
+                    log_success("Schéma proposal_manager existuje!")
+                    return True
+                else:
+                    log_info("Schéma proposal_manager neexistuje. Spusťte SQL skript pro vytvoření schématu.")
+                    log_info(f"Dostupná schémata: {', '.join(schemas[:5])}{' a další...' if len(schemas) > 5 else ''}")
+                    return False
+            except Exception as e:
+                log_error(f"Chyba při zpracování odpovědi: {str(e)}")
+                return False
+        else:
+            log_error(f"Chyba při získávání seznamu schémat. Status: {response.status_code}, Odpověď: {response.text}")
+            
+            # Zkusíme alternativní přístup - přímý dotaz na tabulku
+            try:
+                # Zkusíme vytvořit schéma proposal_manager
+                create_url = f"{supabase_url}/rest/v1/rpc/execute_sql"
+                payload = {
+                    "sql": "CREATE SCHEMA IF NOT EXISTS proposal_manager;"
+                }
+                
+                response = requests.post(create_url, headers=headers, json=payload)
+                
+                if response.status_code == 200:
+                    log_success("Schéma proposal_manager bylo úspěšně vytvořeno nebo již existuje!")
+                    return True
+                else:
+                    log_error(f"Chyba při vytváření schématu. Status: {response.status_code}, Odpověď: {response.text}")
+                    return False
+            except Exception as e:
+                log_error(f"Chyba při vytváření schématu: {str(e)}")
+                return False
+    except Exception as e:
+        log_error(f"Chyba při kontrole existence schématu: {str(e)}")
+        return False
+
+def main():
     """
     Hlavní funkce.
     """
     log_info("Zahájení testování připojení k Supabase...")
     
-    success = await test_connection()
+    # Kontrola, zda je nainstalován modul requests
+    try:
+        import requests
+    except ImportError:
+        log_error("Modul 'requests' není nainstalovaný. Pro instalaci spusťte: pip install requests")
+        sys.exit(1)
+    
+    success = test_connection_sync()
     
     if success:
         log_success("Test připojení k Supabase byl úspěšný!")
+        
+        # Pokud je připojení úspěšné, zkusíme zjistit, zda existuje schéma proposal_manager
+        schema_exists = check_schema_exists()
+        
+        if schema_exists:
+            log_success("Schéma proposal_manager je připraveno k použití!")
+        else:
+            log_info("Spusťte SQL skript pro vytvoření schématu proposal_manager a tabulek.")
+        
         sys.exit(0)
     else:
         log_error("Test připojení k Supabase selhal!")
@@ -132,4 +185,4 @@ async def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

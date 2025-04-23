@@ -75,6 +75,19 @@ check_dependencies() {
     else
         log_success "Modul 'supabase' je již nainstalovaný."
     fi
+
+    # Kontrola, zda je nainstalovaný requests
+    if ! python3 -c "import requests" &> /dev/null; then
+        log_info "Modul 'requests' není nainstalovaný. Instaluji..."
+        pip install requests
+        if [ $? -ne 0 ]; then
+            log_error "Instalace modulu 'requests' selhala. Zkuste ho nainstalovat ručně: pip install requests"
+        else
+            log_success "Modul 'requests' úspěšně nainstalovaný."
+        fi
+    else
+        log_success "Modul 'requests' je již nainstalovaný."
+    fi
 }
 
 # Testování připojení k Supabase
