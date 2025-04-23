@@ -28,8 +28,12 @@ except ImportError:
     sys.exit(1)
 
 # Získání přístupových údajů
-supabase_url = os.getenv("SUPABASE_URL", "http://localhost:8800")
+supabase_url = os.getenv("SUPABASE_URL", "http://localhost:8000")
 supabase_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+# Kontrola a úprava URL
+if supabase_url.endswith('/'):
+    supabase_url = supabase_url[:-1]  # Odstranit koncové lomítko
 
 # Barvy pro výstup
 GREEN = '\033[0;32m'
@@ -51,63 +55,59 @@ async def test_connection():
     Otestuje připojení k Supabase.
     """
     log_info(f"Testování připojení k Supabase na URL: {supabase_url}")
-
+    
     if not supabase_key:
         log_error("SUPABASE_SERVICE_KEY není nastaven. Použijte .env soubor pro nastavení přístupových údajů.")
         return False
-
+    
     try:
         # Vytvoření Supabase klienta
         supabase: Client = create_client(supabase_url, supabase_key)
-
-        # Zkusíme získat verzi PostgreSQL z proposal_manager schémy
+        
+        # Jednoduchý test připojení
         try:
-            response = await supabase.rpc('proposal_manager.get_postgres_version').execute()
-            if response.error:
-                log_error(f"Chyba při testování připojení k Supabase s proposal_manager schémou: {response.error.message}")
-                log_info("Zkusím získat verzi PostgreSQL bez schémy...")
-
-                # Zkusíme získat verzi PostgreSQL bez schémy
-                response = await supabase.rpc('get_postgres_version').execute()
+            # Zkusíme získat informace o uživateli (anonymní přístup)
+            response = await supabase.auth.get_user(supabase_key)
+            log_success("Připojení k Supabase úspěšné!")
+            
+            # Nyní zkusíme zjistit, zda existuje schéma proposal_manager
+            try:
+                # Zkusíme získat seznam schémat
+                response = await supabase.from('information_schema.schemata').select('schema_name').execute()
+                
                 if response.error:
-                    log_error(f"Chyba při testování připojení k Supabase: {response.error.message}")
-                    return False
-
-                log_success(f"Připojení k Supabase úspěšné! PostgreSQL verze: {response.data}")
-                log_info("Schéma proposal_manager není dostupné. Spusťte SQL skript pro vytvoření schématu.")
-                return True
-
-            log_success(f"Připojení k Supabase úspěšné! PostgreSQL verze: {response.data} (schéma proposal_manager)")
+                    log_error(f"Chyba při získávání seznamu schémat: {response.error.message}")
+                else:
+                    schemas = [item['schema_name'] for item in response.data]
+                    if 'proposal_manager' in schemas:
+                        log_success(f"Schéma proposal_manager existuje!")
+                        
+                        # Zkusíme získat seznam tabulek ve schémě proposal_manager
+                        try:
+                            response = await supabase.from('information_schema.tables').select('table_name').eq('table_schema', 'proposal_manager').execute()
+                            
+                            if response.error:
+                                log_error(f"Chyba při získávání seznamu tabulek: {response.error.message}")
+                            else:
+                                tables = [item['table_name'] for item in response.data]
+                                if tables:
+                                    log_success(f"Schéma proposal_manager obsahuje {len(tables)} tabulek: {', '.join(tables[:5])}{' a další...' if len(tables) > 5 else ''}")
+                                else:
+                                    log_info("Schéma proposal_manager existuje, ale neobsahuje žádné tabulky. Spusťte SQL skript pro vytvoření tabulek.")
+                        except Exception as e:
+                            log_error(f"Chyba při získávání seznamu tabulek: {str(e)}")
+                    else:
+                        log_info(f"Schéma proposal_manager neexistuje. Dostupná schémata: {', '.join(schemas[:5])}{' a další...' if len(schemas) > 5 else ''}")
+                        log_info("Spusťte SQL skript pro vytvoření schématu proposal_manager.")
+            except Exception as e:
+                log_error(f"Chyba při získávání seznamu schémat: {str(e)}")
+                log_info("Spusťte SQL skript pro vytvoření schématu proposal_manager.")
+            
             return True
         except Exception as e:
-            log_error(f"Chyba při volání RPC funkce: {str(e)}")
-
-            # Zkusíme alternativní test - získání seznamu tabulek ve schémě proposal_manager
-            log_info("Zkouším alternativní test - získání seznamu tabulek ve schémě proposal_manager...")
-            response = await supabase.table('pg_catalog.pg_tables').select('schemaname,tablename').eq('schemaname', 'proposal_manager').execute()
-
-            if response.error:
-                log_error(f"Chyba při získávání seznamu tabulek: {response.error.message}")
-
-                # Zkusíme získat seznam všech tabulek
-                log_info("Zkouším získat seznam všech tabulek...")
-                response = await supabase.table('pg_catalog.pg_tables').select('schemaname,tablename').limit(5).execute()
-
-                if response.error:
-                    log_error(f"Chyba při získávání seznamu tabulek: {response.error.message}")
-                    return False
-
-                log_success(f"Připojení k Supabase úspěšné! Nalezeno {len(response.data)} tabulek.")
-                log_info("Schéma proposal_manager není dostupné nebo neobsahuje žádné tabulky. Spusťte SQL skript pro vytvoření schématu.")
-                return True
-
-            if len(response.data) == 0:
-                log_info("Schéma proposal_manager existuje, ale neobsahuje žádné tabulky. Spusťte SQL skript pro vytvoření tabulek.")
-                return True
-
-            log_success(f"Připojení k Supabase úspěšné! Nalezeno {len(response.data)} tabulek ve schémě proposal_manager.")
-            return True
-
+            log_error(f"Chyba při testování připojení k Supabase: {str(e)}")
+            return False
+            
     except Exception as e:
         log_error(f"Chyba při připojování k Supabase: {str(e)}")
         return False
@@ -117,9 +117,9 @@ async def main():
     Hlavní funkce.
     """
     log_info("Zahájení testování připojení k Supabase...")
-
+    
     success = await test_connection()
-
+    
     if success:
         log_success("Test připojení k Supabase byl úspěšný!")
         sys.exit(0)
