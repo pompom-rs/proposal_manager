@@ -113,6 +113,7 @@ SUCCESS: Testy s pokrytím dokončeny.
 Tento skript pomáhá s nastavením databáze pro lokální Supabase instanci. Provede následující kroky:
 - Načtení proměnných prostředí z `.env` souboru
 - Kontrola Supabase nastavení
+- Kontrola a automatická instalace potřebných Python závislostí (`python-dotenv`, `supabase`)
 - Testování připojení k Supabase
 - Zobrazení instrukcí pro spuštění SQL migračních skriptů
 - Zobrazení instrukcí pro naplnění databáze testovacími daty
@@ -225,6 +226,19 @@ Pokud se zobrazí chyba při připojení k Supabase, zkontrolujte:
    SUPABASE_SERVICE_KEY=your-service-key
    ```
 3. Zda není blokováno připojení firewallem
+
+### Chyba "No module named 'dotenv'" nebo "No module named 'supabase'"
+
+Pokud se zobrazí chyba o chybějících modulech, máte dvě možnosti:
+
+1. **Použít skript `db_setup.sh`**, který automaticky nainstaluje potřebné závislosti
+
+2. **Ručně nainstalovat potřebné moduly**:
+   ```bash
+   pip install python-dotenv supabase
+   ```
+
+Skript `db_setup.sh` byl aktualizován tak, aby automaticky kontroloval a instaloval potřebné závislosti.
 
 ### Chyba při instalaci závislostí
 
