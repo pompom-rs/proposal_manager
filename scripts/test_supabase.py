@@ -5,7 +5,6 @@ Skript pro testování připojení k lokální Supabase instanci.
 
 import os
 import sys
-import json
 
 # Přidání kořenového adresáře do PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -89,65 +88,12 @@ def check_schema_exists():
     """
     log_info("Kontrola existence schématu proposal_manager...")
     
-    try:
-        import requests
-        
-        # Nejprve zkusíme získat seznam schémat pomocí SQL dotazu
-        query_url = f"{supabase_url}/rest/v1/rpc/query"
-        headers = {
-            "apikey": supabase_key,
-            "Authorization": f"Bearer {supabase_key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-        }
-        
-        # SQL dotaz pro získání seznamu schémat
-        payload = {
-            "query": "SELECT schema_name FROM information_schema.schemata"
-        }
-        
-        response = requests.post(query_url, headers=headers, json=payload)
-        
-        if response.status_code == 200:
-            try:
-                result = response.json()
-                schemas = [item.get('schema_name') for item in result]
-                
-                if 'proposal_manager' in schemas:
-                    log_success("Schéma proposal_manager existuje!")
-                    return True
-                else:
-                    log_info("Schéma proposal_manager neexistuje. Spusťte SQL skript pro vytvoření schématu.")
-                    log_info(f"Dostupná schémata: {', '.join(schemas[:5])}{' a další...' if len(schemas) > 5 else ''}")
-                    return False
-            except Exception as e:
-                log_error(f"Chyba při zpracování odpovědi: {str(e)}")
-                return False
-        else:
-            log_error(f"Chyba při získávání seznamu schémat. Status: {response.status_code}, Odpověď: {response.text}")
-            
-            # Zkusíme alternativní přístup - přímý dotaz na tabulku
-            try:
-                # Zkusíme vytvořit schéma proposal_manager
-                create_url = f"{supabase_url}/rest/v1/rpc/execute_sql"
-                payload = {
-                    "sql": "CREATE SCHEMA IF NOT EXISTS proposal_manager;"
-                }
-                
-                response = requests.post(create_url, headers=headers, json=payload)
-                
-                if response.status_code == 200:
-                    log_success("Schéma proposal_manager bylo úspěšně vytvořeno nebo již existuje!")
-                    return True
-                else:
-                    log_error(f"Chyba při vytváření schématu. Status: {response.status_code}, Odpověď: {response.text}")
-                    return False
-            except Exception as e:
-                log_error(f"Chyba při vytváření schématu: {str(e)}")
-                return False
-    except Exception as e:
-        log_error(f"Chyba při kontrole existence schématu: {str(e)}")
-        return False
+    log_info("Pro kontrolu existence schématu proposal_manager je potřeba spustit SQL skript.")
+    log_info("Použijte SQL Editor v Supabase dashboardu a spusťte následující dotaz:")
+    log_info("SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'proposal_manager';")
+    
+    log_info("Pro vytvoření schématu proposal_manager a tabulek použijte SQL skript v souboru backend/db/schema.sql.")
+    return False
 
 def main():
     """
@@ -167,13 +113,11 @@ def main():
     if success:
         log_success("Test připojení k Supabase byl úspěšný!")
         
-        # Pokud je připojení úspěšné, zkusíme zjistit, zda existuje schéma proposal_manager
-        schema_exists = check_schema_exists()
+        # Pokud je připojení úspěšné, zobrazíme informace o dalších krocích
+        check_schema_exists()
         
-        if schema_exists:
-            log_success("Schéma proposal_manager je připraveno k použití!")
-        else:
-            log_info("Spusťte SQL skript pro vytvoření schématu proposal_manager a tabulek.")
+        log_info("Pro vytvoření schématu proposal_manager a tabulek použijte SQL skript v souboru backend/db/schema.sql.")
+        log_info("Spusťte tento skript v SQL Editoru v Supabase dashboardu.")
         
         sys.exit(0)
     else:
