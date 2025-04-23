@@ -48,27 +48,52 @@ async def test_connection():
         # Vytvoření Supabase klienta
         supabase: Client = create_client(supabase_url, supabase_key)
         
-        # Zkusíme získat verzi PostgreSQL
+        # Zkusíme získat verzi PostgreSQL z proposal_manager schémy
         try:
-            response = await supabase.rpc('get_postgres_version').execute()
+            response = await supabase.rpc('proposal_manager.get_postgres_version').execute()
             if response.error:
-                log_error(f"Chyba při testování připojení k Supabase: {response.error.message}")
-                return False
+                log_error(f"Chyba při testování připojení k Supabase s proposal_manager schémou: {response.error.message}")
+                log_info("Zkusím získat verzi PostgreSQL bez schémy...")
                 
-            log_success(f"Připojení k Supabase úspěšné! PostgreSQL verze: {response.data}")
+                # Zkusíme získat verzi PostgreSQL bez schémy
+                response = await supabase.rpc('get_postgres_version').execute()
+                if response.error:
+                    log_error(f"Chyba při testování připojení k Supabase: {response.error.message}")
+                    return False
+                    
+                log_success(f"Připojení k Supabase úspěšné! PostgreSQL verze: {response.data}")
+                log_info("Schéma proposal_manager není dostupné. Spusťte SQL skript pro vytvoření schématu.")
+                return True
+                
+            log_success(f"Připojení k Supabase úspěšné! PostgreSQL verze: {response.data} (schéma proposal_manager)")
             return True
         except Exception as e:
             log_error(f"Chyba při volání RPC funkce: {str(e)}")
             
-            # Zkusíme alternativní test - získání seznamu tabulek
-            log_info("Zkouším alternativní test - získání seznamu tabulek...")
-            response = await supabase.table('pg_catalog.pg_tables').select('schemaname,tablename').limit(5).execute()
+            # Zkusíme alternativní test - získání seznamu tabulek ve schémě proposal_manager
+            log_info("Zkouším alternativní test - získání seznamu tabulek ve schémě proposal_manager...")
+            response = await supabase.table('pg_catalog.pg_tables').select('schemaname,tablename').eq('schemaname', 'proposal_manager').execute()
             
             if response.error:
                 log_error(f"Chyba při získávání seznamu tabulek: {response.error.message}")
-                return False
                 
-            log_success(f"Připojení k Supabase úspěšné! Nalezeno {len(response.data)} tabulek.")
+                # Zkusíme získat seznam všech tabulek
+                log_info("Zkouším získat seznam všech tabulek...")
+                response = await supabase.table('pg_catalog.pg_tables').select('schemaname,tablename').limit(5).execute()
+                
+                if response.error:
+                    log_error(f"Chyba při získávání seznamu tabulek: {response.error.message}")
+                    return False
+                    
+                log_success(f"Připojení k Supabase úspěšné! Nalezeno {len(response.data)} tabulek.")
+                log_info("Schéma proposal_manager není dostupné nebo neobsahuje žádné tabulky. Spusťte SQL skript pro vytvoření schématu.")
+                return True
+            
+            if len(response.data) == 0:
+                log_info("Schéma proposal_manager existuje, ale neobsahuje žádné tabulky. Spusťte SQL skript pro vytvoření tabulek.")
+                return True
+                
+            log_success(f"Připojení k Supabase úspěšné! Nalezeno {len(response.data)} tabulek ve schémě proposal_manager.")
             return True
             
     except Exception as e:
